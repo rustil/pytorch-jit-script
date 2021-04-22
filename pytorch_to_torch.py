@@ -9,6 +9,7 @@ import torch
 
 print('PyTorch version: {}'.format(torch.__version__))
 
+
 def make_parser():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
@@ -31,6 +32,11 @@ def make_parser():
     parser.add_argument('-w', '--state_dict',
                         type=str,
                         help='Path to the state dict / checkpoint that is to be loaded.')
+
+    parser.add_argument('--state_key',
+                        type=str,
+                        help='Key to the model as saved in your state_dict.')
+
     parser.add_argument('--args', nargs='+',
                         help='Positional arguments for the model constructor',
                         default=[]
@@ -60,14 +66,19 @@ def execute(parser):
 
     if parser.state_dict is not None:
         checkpoint = torch.load(parser.state_dict)
+        if parser.state_key is not None:
+            model_checkpoint = checkpoint[parser.state_key]
+        else:
+            model_checkpoint = checkpoint
+            
         try:
-            model.load_state_dict(checkpoint)
+            model.load_state_dict(model_checkpoint)
         except RuntimeError as e:
             print('State dictionary might have been saved using DataParallel, trying key-renaming hack now...')
             # Hack because module was saved using DataParallel
             # (https://discuss.pytorch.org/t/solved-keyerror-unexpected-key-module-encoder-embedding-weight-in-state-dict/1686/2)
-            checkpoint = OrderedDict({k.replace("module.", ""): v for k, v in checkpoint.items()})
-            model.load_state_dict(checkpoint)
+            model_checkpoint = OrderedDict({k.replace("module.", ""): v for k, v in model_checkpoint.items()})
+            model.load_state_dict(model_checkpoint)
 
         print('State dictionary successfully loaded.')
     else:
